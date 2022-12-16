@@ -1,0 +1,17 @@
+server:
+  port: 80
+
+openapi:
+  key: your open_api key
+
+spring:
+  redis:
+    port: 6379
+    host: your redis ip
+    password: your redis password
+    jedis:
+      pool:
+        max-idle: 500
+        min-idle: 50
+        max-active: 1000
+        max-wait: 2000

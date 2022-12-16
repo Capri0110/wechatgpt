@@ -1,0 +1,5 @@
+wx:
+  mp:
+    app-id: your appid
+    secret: your secret
+    token: your token
