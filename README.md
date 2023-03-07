@@ -1,4 +1,4 @@
-# wxmp_chat
+# wechatgpt
 
 #### 介绍
 基于chatGPT开发微信公众号智能机器人
