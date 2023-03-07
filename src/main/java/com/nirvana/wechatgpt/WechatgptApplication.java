@@ -1,4 +1,4 @@
-package com.honghu.wxmp_chat;
+package com.nirvana.wechatgpt;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -7,10 +7,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @author honghu
  */
 @SpringBootApplication
-public class WxmpChatApplication {
+public class WechatgptApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(WxmpChatApplication.class, args);
+        SpringApplication.run(WechatgptApplication.class, args);
     }
 
 }

@@ -1,11 +1,10 @@
-package com.honghu.wxmp_chat.service;
+package com.nirvana.wechatgpt.service;
 
 /**
- * @author honghu
+ * @author
  */
 public interface ChatGptService {
     /**
-     * 调用chatGTP回复信息
      * @param messageContent
      * @param userKey
      * @return

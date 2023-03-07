@@ -1,38 +1,37 @@
-package com.honghu.wxmp_chat.controller;
+package com.nirvana.wechatgpt.controller;
 
-import com.honghu.wxmp_chat.service.ChatGptServiceImpl;
+import com.nirvana.wechatgpt.service.ChatGptServiceImpl;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.error.WxErrorException;
 import me.chanjar.weixin.mp.api.WxMpService;
 import me.chanjar.weixin.mp.bean.message.WxMpXmlMessage;
 import me.chanjar.weixin.mp.bean.message.WxMpXmlOutTextMessage;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 
 /**
- * 微信事件推送及被动回复消息
+ * wechat event & msg reply
  *
- * @author honghu
+ * @author
  */
 @Slf4j
 @RestController
-@RequestMapping("wx/mp/welcome")
+@RequestMapping("")
+@RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class WxMpMsgController {
 
-    @Resource
-    private WxMpService wxMpService;
+    private final WxMpService wxMpService;
 
-    @Resource
-    private ChatGptServiceImpl chatGptService;
+    private final ChatGptServiceImpl chatGptService;
 
     /**
-     * 消息校验，确定是微信发送的消息
+     * Message validator
      *
      * @param signature
      * @param timestamp
@@ -41,18 +40,20 @@ public class WxMpMsgController {
      * @return
      * @throws Exception
      */
-    @GetMapping
-    public String get(String signature, String timestamp, String nonce, String echostr) {
-        // 消息签名不正确，说明不是公众平台发过来的消息
+    @GetMapping("check")
+    public String get(@RequestParam("signature") String signature,
+                      @RequestParam("timestamp") String timestamp,
+                      @RequestParam("nonce") String nonce, @RequestParam("echostr") String echostr) {
+        // validate signature
+        log.info("signature is {}, ts {}, nonce {}", signature, timestamp, nonce);
         if (!wxMpService.checkSignature(timestamp, nonce, signature)) {
             return null;
         }
-        // 消息合法
         return echostr;
     }
 
     /**
-     * 被动回复用户消息
+     * passively reply
      *
      * @param request
      * @return
@@ -86,7 +87,7 @@ public class WxMpMsgController {
                         .TEXT()
                         .toUser(fromUser)
                         .fromUser(touser)
-                        .content("谢谢你长的这么好看还关注我~~我是贴心的小小鹏有问题尽管提问我好了！！")
+                        .content("谢谢你长的这么好看还关注我哦～ 我是Larissa（a.k.a. 🇧🇷超模）, 我会试着回答你呢-")
                         .build();
 
                 String result = texts.toXml();

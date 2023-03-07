@@ -1,25 +1,21 @@
-package com.honghu.wxmp_chat.entity;
+package com.nirvana.wechatgpt.entity;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import lombok.Builder;
 import lombok.Data;
 
 import java.util.List;
 
-/**
- * @author honghu
- * 发送前配置
- */
 @Data
-public class MessageSendBody {
+@Builder
+public class Davinci3ReqBody {
 
     private String model;
 
     private String prompt;
 
     private double temperature;
-    /**
-     * 貌似指的是语句的最大字符数
-     */
+
     @JSONField(name = "max_tokens")
     private int maxTokens;
 
@@ -32,9 +28,6 @@ public class MessageSendBody {
     @JSONField(name = "presence_penalty")
     private double presencePenalty;
 
-    /**
-     * 表明语句结束的标志
-     */
     List<String> stop;
 
 }

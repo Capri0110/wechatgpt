@@ -1,4 +1,4 @@
-package com.honghu.wxmp_chat.entity;
+package com.nirvana.wechatgpt.entity;
 
 import lombok.Data;
 
