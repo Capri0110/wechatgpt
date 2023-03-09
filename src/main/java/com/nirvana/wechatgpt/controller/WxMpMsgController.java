@@ -1,5 +1,7 @@
 package com.nirvana.wechatgpt.controller;
 
+import com.nirvana.wechatgpt.entity.GptMessageBody;
+import com.nirvana.wechatgpt.entity.GptReqBody;
 import com.nirvana.wechatgpt.service.ChatGptServiceImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,10 +10,9 @@ import me.chanjar.weixin.mp.api.WxMpService;
 import me.chanjar.weixin.mp.bean.message.WxMpXmlMessage;
 import me.chanjar.weixin.mp.bean.message.WxMpXmlOutTextMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 
@@ -22,7 +23,7 @@ import java.io.IOException;
  */
 @Slf4j
 @RestController
-@RequestMapping("")
+@RequestMapping("/wx/mp")
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class WxMpMsgController {
 
@@ -40,8 +41,8 @@ public class WxMpMsgController {
      * @return
      * @throws Exception
      */
-    @GetMapping("check")
-    public String get(@RequestParam("signature") String signature,
+    @GetMapping("")
+    public Object get(@RequestParam("signature") String signature,
                       @RequestParam("timestamp") String timestamp,
                       @RequestParam("nonce") String nonce, @RequestParam("echostr") String echostr) {
         // validate signature
@@ -49,37 +50,39 @@ public class WxMpMsgController {
         if (!wxMpService.checkSignature(timestamp, nonce, signature)) {
             return null;
         }
-        return echostr;
+        return ResponseEntity.ok(echostr);
     }
 
     /**
      * passively reply
      *
-     * @param request
+     * @param reqBody
      * @return
      * @throws Exception
      */
-    @PostMapping
-    public String post(HttpServletRequest request) throws IOException, WxErrorException {
+    @PostMapping("")
+    @ResponseBody
+    public Object passiveMsg(@RequestBody String reqBody) throws IOException, WxErrorException {
 
+        log.error("msg is {}", reqBody);
         //获取消息流,并解析xml
-        WxMpXmlMessage message = WxMpXmlMessage.fromXml(request.getInputStream());
-        System.out.println(message.toString());
+        WxMpXmlMessage message = WxMpXmlMessage.fromXml(reqBody);
+        log.info("msg is {}", message.toString());
         //消息类型
         String messageType = message.getMsgType();
-        System.out.println("消息类型:" + messageType);
+        log.info("消息类型:" + messageType);
         //发送者帐号
         String fromUser = message.getFromUser();
-        System.out.println("发送者账号：" + fromUser);
+        log.info("发送者账号：" + fromUser);
         //开发者微信号
         String touser = message.getToUser();
-        System.out.println("开发者微信：" + touser);
+        log.info("开发者微信：" + touser);
         //文本消息  文本内容
         String text = message.getContent();
-        System.out.println("文本消息：" + text);
+        log.info("文本消息：" + text);
         // 事件推送
         if (messageType.equals("event")) {
-            System.out.println("event：" + message.getEvent());
+            log.info("event：" + message.getEvent());
             // 关注
             if (message.getEvent().equals("subscribe")) {
                 log.info("用户关注：{}", fromUser);
@@ -92,7 +95,7 @@ public class WxMpMsgController {
 
                 String result = texts.toXml();
 
-                System.out.println("响应给用户的消息：" + result);
+                log.info("响应给用户的消息：" + result);
 
                 return result;
             }
@@ -127,7 +130,7 @@ public class WxMpMsgController {
                     .content( chatGptService.reply(text, fromUser))
                     .build();
             String result = texts.toXml();
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         //图片消息
@@ -140,7 +143,7 @@ public class WxMpMsgController {
                     .build();
             String result = texts.toXml();
             result.replace("你发送的消息为： ", "");
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         /**
@@ -154,7 +157,7 @@ public class WxMpMsgController {
                     .content("已接收到您发的语音信息")
                     .build();
             String result = texts.toXml();
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         /**
@@ -168,7 +171,7 @@ public class WxMpMsgController {
                     .content("已接收到您发的视频信息")
                     .build();
             String result = texts.toXml();
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         /**
@@ -182,7 +185,7 @@ public class WxMpMsgController {
                     .content("已接收到您发的小视频信息")
                     .build();
             String result = texts.toXml();
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         /**
@@ -196,7 +199,7 @@ public class WxMpMsgController {
                     .content("已接收到您发的地理位置信息")
                     .build();
             String result = texts.toXml();
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         /**
@@ -210,7 +213,7 @@ public class WxMpMsgController {
                     .content("已接收到您发的链接信息")
                     .build();
             String result = texts.toXml();
-            System.out.println("响应给用户的消息：" + result);
+            log.info("响应给用户的消息：" + result);
             return result;
         }
         return null;
@@ -223,6 +226,11 @@ public class WxMpMsgController {
 //        message.setContent(content);
 //
 //        wxMpService.getKefuService().sendKefuMessage(message);
+//    }
+
+//    @PostMapping("/chat")
+//    public Object chatWithGpt(@RequestBody GptReqBody content) {
+//        return chatGptService.reply(content.getContent(), content.getOpenId());
 //    }
 
 }

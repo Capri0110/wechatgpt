@@ -1,13 +1,13 @@
 server:
   port: 80
   servlet:
-    context-path: /wx/mp
+    context-path:
 
 openai:
   organization:
   model: gpt-3.5-turbo
   api:
-    key:
+    key: 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
     url: https://api.openai.com/v1/chat/completions
 
 spring:

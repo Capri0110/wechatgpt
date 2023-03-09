@@ -13,10 +13,10 @@ public class MessageResponseBody {
 
     private String object;
 
-    private int create;
+    private int created;
 
     private String model;
 
-    private List<Choices> choices;
+    private List<Choice> choices;
 
 }

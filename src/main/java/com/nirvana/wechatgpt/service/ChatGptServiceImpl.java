@@ -8,22 +8,24 @@ import com.nirvana.wechatgpt.entity.ChatGptReqBody;
 import com.nirvana.wechatgpt.entity.GptMessageBody;
 import com.nirvana.wechatgpt.entity.MessageResponseBody;
 import com.nirvana.wechatgpt.entity.Davinci3ReqBody;
-import com.nirvana.wechatgpt.utils.RedisUtils;
+import com.nirvana.wechatgpt.service.domain.UserChatDomain;
+import com.nirvana.wechatgpt.service.task.TaskManager;
 import com.nirvana.wechatgpt.utils.RestTemplateUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
-
 import javax.annotation.Resource;
 import java.security.InvalidParameterException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+
+import static com.nirvana.wechatgpt.constant.TextContentConst.*;
 
 /**
  * @author
@@ -38,87 +40,89 @@ public class ChatGptServiceImpl implements ChatGptService {
     @Value("${openai.api.url:https://api.openai.com/v1/completions}")
     private String url;
 
-    @Value("${openai.model:text-davinci-003")
+    @Value("${openai.model:text-davinci-003}")
     private String model;
 
     @Value("${openai.organization:org-WkgBCSVsTsScrE7eMB8TgCoz}")
     private String organ;
 
     @Resource
-    StringRedisTemplate stringRedisTemplate;
+    private RestTemplateUtils httpClient;
 
     @Resource
-    RestTemplateUtils httpClient;
+    private RedissonClient redissonClient;
 
-    private final String HUMAN = "Human:";
-
-    private final String AI = "Larissa:";
-
-    private final String multiMessageTokens = ";";
 
     @Override
     public String reply(String messageContent, String userKey) {
-        // default
-        String message = String.format("%s: You can ask me whatever you want to know, I will try to response\n" +
-                "你可以向我提问任何问题，我会试着解答", AI);
-        RedisUtils redisUtils = new RedisUtils(stringRedisTemplate);
-        if (redisUtils.hasKey(userKey)) {
-            message = redisUtils.get(userKey);
+        try {
+            FutureTask<String> futures = TaskManager.doFutureTask( () -> {
+                RMap<String, UserChatDomain> userQueries = redissonClient.getMap(userKey);
+                userQueries.expire(Duration.of(20L, ChronoUnit.MINUTES));
+                if (userQueries.containsKey(messageContent)) {
+                    UserChatDomain chats = userQueries.get(messageContent);
+                    log.info("query {} reply with time {} sec", messageContent, chats.getQueryTime());
+                    return chats.getQueryReply();
+                } else {
+                    long startTime = System.currentTimeMillis();
+                    // call openapi
+                    JSONObject obj = getReplyFromGPT(messageContent, userKey);
+                    log.info("reply content is : {}", obj.toJSONString());
+                    MessageResponseBody messageResponseBody = JSONObject.toJavaObject(obj,
+                            MessageResponseBody.class);
+                    // todo: can query with n > 1 save with other data struct
+                    userQueries.put(messageContent, UserChatDomain.builder()
+                            .queryReply(messageResponseBody.getChoices().get(0).getMessage().getContent())
+                            .queryTime(messageResponseBody.getCreated() - startTime).build());
+                    return messageResponseBody.getChoices().get(0).getMessage().getContent();
+                }
+            }, "-->chat service run -->");
+            return (futures.get(4800, TimeUnit.MILLISECONDS) != null) ? futures.get() : EXCESS_5_SEC_LIMIT;
+        } catch (Throwable e) {
+            log.error("query with error occurs ", e);
+            return UNEXPECTED_ERR;
         }
-        // set redis cache
-        message = message + HUMAN + messageContent + "\n";
-        redisUtils.setEx(userKey, message, 60, TimeUnit.SECONDS);
-        // call openapi
-        JSONObject obj = getReplyFromGPT(message);
-        MessageResponseBody messageResponseBody = JSONObject.toJavaObject(obj, MessageResponseBody.class);
-        // cache reply when necessary
-        if (messageResponseBody != null) {
-            if (!CollectionUtils.isEmpty(messageResponseBody.getChoices())) {
-                String replyText = messageResponseBody.getChoices().get(0).getText();
-                new Thread(() -> {
-                    String msg = redisUtils.get(userKey);
-                    msg = msg + AI + replyText + "\n";
-                    redisUtils.setEx(userKey, msg, 60, TimeUnit.SECONDS);
-                }).start();
-                return replyText.replace(AI, "");
-            }
-        }
-        return "发生了一些问题，你可以稍等下或和我的开发者反馈（如果你认识ta）^_^ ";
     }
 
-    private JSONObject getReplyFromGPT(String message) {
+    private JSONObject getReplyFromGPT(String message, String uid) {
         String url = this.url;
         Map<String, String> header = new HashMap<>();
         header.put("Authorization", "Bearer " + apiKey);
         header.put("OpenAI-Organization", organ);
         header.put("Content-Type", "application/json");
-        Object messageSendBody = buildRequestMsgBody(message);
+        Object messageSendBody = buildRequestMsgBody(message, uid);
         String body = JSON.toJSONString(messageSendBody, SerializerFeature.PrettyFormat, SerializerFeature.WriteMapNullValue, SerializerFeature.WriteDateUseDateFormat);
         log.info("send request body : [{}]", body);
         ResponseEntity<String> data = httpClient.post(url, header, body, String.class);
         return JSON.parseObject(data.getBody());
     }
 
-    private Object buildRequestMsgBody(String msg) {
-        Object preSettings = buildConfig(msg);
+    private Object buildRequestMsgBody(String msg, String uid) {
+        Object preSettings = buildConfig(this.model, uid);
         if (preSettings instanceof Davinci3ReqBody) {
             ((Davinci3ReqBody) preSettings).setPrompt(msg);
         } else if (preSettings instanceof ChatGptReqBody) {
-            GptMessageBody[] chatMsgs = new GptMessageBody[16];
-            int idx = 0;
-            for (String subMsg : msg.split(multiMessageTokens)) {
-                chatMsgs[idx++] = GptMessageBody.builder()
-                        .role(ChatGptUserRoleEnum.user.name())
-                        .content(subMsg).build();
-            }
+            List<GptMessageBody> chatMsgs = new ArrayList<>();
+            Arrays.stream(msg.split(multiMessageTokens))
+                    .forEach(subMsg -> chatMsgs
+                            .add(GptMessageBody.builder()
+                            .role(ChatGptUserRoleEnum.user)
+                            .content(subMsg).build())
+            );
+//            for (String subMsg : msg.split(multiMessageTokens)) {
+//                chatMsgs.add(GptMessageBody.builder()
+//                        .role(ChatGptUserRoleEnum.user)
+//                        .content(subMsg).build());
+//            }
             ((ChatGptReqBody) preSettings).setMessages(chatMsgs);
         }
         return preSettings;
 
     }
 
-    private Object buildConfig(String model, String... args) {
+    private Object buildConfig(String model, String uid, String... args) {
         Object messageBody;
+        log.debug("current reply model : {}", model);
         List<String> stop = new ArrayList<>(8);
         stop.add(AI);
         stop.add(HUMAN);
@@ -136,9 +140,11 @@ public class ChatGptServiceImpl implements ChatGptService {
                     .model(model)
                     .temperature(0.9)
                     .topP(1)
-//                    .maxTokens(1000)
+                    .maxTokens(1000)
                     .frequencyPenalty(0.0)
                     .presencePenalty(0.6)
+                    .logit_bias(new HashMap<>(1))
+                    .user(uid)
                     // default only generate 1 response
                     .n(1).stop(stop).build();
         } else {

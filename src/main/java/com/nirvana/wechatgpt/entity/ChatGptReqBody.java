@@ -1,19 +1,24 @@
 package com.nirvana.wechatgpt.entity;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.sun.istack.internal.NotNull;
 import lombok.Builder;
 import lombok.Data;
+import lombok.ToString;
 
 import java.util.List;
 import java.util.Map;
 
 @Data
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ChatGptReqBody {
 
     private String model;
 
-    private GptMessageBody[] messages;
+    private List<GptMessageBody> messages;
 
     private double temperature;
     // how many chat completion choices to generate for each input message.
