@@ -12,6 +12,7 @@ import com.nirvana.wechatgpt.service.domain.UserChatDomain;
 import com.nirvana.wechatgpt.service.task.TaskManager;
 import com.nirvana.wechatgpt.utils.RestTemplateUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,7 @@ import java.util.*;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
+import static com.nirvana.wechatgpt.constant.LogConst.*;
 import static com.nirvana.wechatgpt.constant.TextContentConst.*;
 
 /**
@@ -55,7 +57,21 @@ public class ChatGptServiceImpl implements ChatGptService {
 
     @Override
     public String reply(String messageContent, String userKey) {
+        RLock lock = null;
+        // 限制wechat多次请求并发
         try {
+            lock = redissonClient.getLock(USER_CHAT_LOCK + userKey);
+        } catch (Exception e) {
+            log.error("runTopicThreads getLock error", e);
+        }
+        try {
+            if (null == lock) {
+                return DEFAULT_MSG_GREED;
+            }
+            boolean lockFlag = lock.tryLock(3, 120, TimeUnit.SECONDS);
+            if (!lockFlag) {
+                return DEFAULT_MSG_GREED;
+            }
             FutureTask<String> futures = TaskManager.doFutureTask( () -> {
                 RMap<String, UserChatDomain> userQueries = redissonClient.getMap(userKey);
                 userQueries.expire(Duration.of(20L, ChronoUnit.MINUTES));
@@ -81,7 +97,18 @@ public class ChatGptServiceImpl implements ChatGptService {
         } catch (Throwable e) {
             log.error("query with error occurs ", e);
             return UNEXPECTED_ERR;
+        } finally {
+            if (lock != null
+                    && lock.isLocked()
+                    && lock.isHeldByCurrentThread()) {
+                try {
+                    lock.unlock();
+                } catch (Exception e) {
+                    log.error("runTopicThreads unlock error", e);
+                }
+            }
         }
+
     }
 
     private JSONObject getReplyFromGPT(String message, String uid) {
