@@ -70,7 +70,7 @@ public class ChatGptServiceImpl implements ChatGptService {
             }
             boolean lockFlag = lock.tryLock(3, 120, TimeUnit.SECONDS);
             if (!lockFlag) {
-                return DEFAULT_MSG_GREED;
+                return DEFAULT_MSG_WAIT;
             }
             FutureTask<String> futures = TaskManager.doFutureTask( () -> {
                 RMap<String, UserChatDomain> userQueries = redissonClient.getMap(userKey);
@@ -93,7 +93,8 @@ public class ChatGptServiceImpl implements ChatGptService {
                     return messageResponseBody.getChoices().get(0).getMessage().getContent();
                 }
             }, "-->chat service run -->");
-            return (futures.get(4800, TimeUnit.MILLISECONDS) != null) ? futures.get() : EXCESS_5_SEC_LIMIT;
+//            return (futures.get(4800, TimeUnit.MILLISECONDS) != null) ? futures.get() : EXCESS_5_SEC_LIMIT;
+            return (futures.get() != null) ? futures.get() : EXCESS_5_SEC_LIMIT;
         } catch (Throwable e) {
             log.error("query with error occurs ", e);
             return UNEXPECTED_ERR;

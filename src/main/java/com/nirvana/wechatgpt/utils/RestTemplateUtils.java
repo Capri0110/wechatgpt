@@ -29,7 +29,7 @@ public class RestTemplateUtils {
         HttpClient httpClient = HttpClientBuilder.create().disableCookieManagement().disableRedirectHandling().build();
         factory.setConnectionRequestTimeout(10000);
         factory.setConnectTimeout(10000);
-        factory.setReadTimeout(10000);
+        factory.setReadTimeout(120000);
         factory.setHttpClient(httpClient);
         restTemplate = new RestTemplate();
         restTemplate.setRequestFactory(factory);
