@@ -1,12 +1,9 @@
 package com.nirvana.wechatgpt.entity;
 
 import com.alibaba.fastjson.annotation.JSONField;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.sun.istack.internal.NotNull;
 import lombok.Builder;
 import lombok.Data;
-import lombok.ToString;
 
 import java.util.List;
 import java.util.Map;

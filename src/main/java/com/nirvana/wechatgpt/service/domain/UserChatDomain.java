@@ -31,4 +31,7 @@ public class UserChatDomain implements Serializable {
      */
     @NotBlank
     private String queryReply;
+
+    @NotBlank
+    private long replyBitLength;
 }

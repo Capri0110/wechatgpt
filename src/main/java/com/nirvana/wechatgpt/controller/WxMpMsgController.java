@@ -64,7 +64,7 @@ public class WxMpMsgController {
     @ResponseBody
     public Object passiveMsg(@RequestBody String reqBody) throws IOException, WxErrorException {
 
-        log.error("msg is {}", reqBody);
+        log.info("msg is {}", reqBody);
         //获取消息流,并解析xml
         WxMpXmlMessage message = WxMpXmlMessage.fromXml(reqBody);
         log.info("msg is {}", message.toString());

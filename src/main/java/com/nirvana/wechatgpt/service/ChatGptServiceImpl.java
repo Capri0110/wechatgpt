@@ -19,6 +19,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidParameterException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -54,6 +59,8 @@ public class ChatGptServiceImpl implements ChatGptService {
     @Resource
     private RedissonClient redissonClient;
 
+    private static final int maxByteLen = 2048;
+
 
     @Override
     public String reply(String messageContent, String userKey) {
@@ -62,12 +69,13 @@ public class ChatGptServiceImpl implements ChatGptService {
         try {
             lock = redissonClient.getLock(USER_CHAT_LOCK + userKey);
         } catch (Exception e) {
-            log.error("runTopicThreads getLock error", e);
+            log.error(userKey + " getLock error", e);
         }
         try {
             if (null == lock) {
                 return DEFAULT_MSG_GREED;
             }
+            // the lock time correspond with openapi query time ~= rest template timeout conf
             boolean lockFlag = lock.tryLock(3, 120, TimeUnit.SECONDS);
             if (!lockFlag) {
                 return DEFAULT_MSG_WAIT;
@@ -78,7 +86,7 @@ public class ChatGptServiceImpl implements ChatGptService {
                 if (userQueries.containsKey(messageContent)) {
                     UserChatDomain chats = userQueries.get(messageContent);
                     log.info("query {} reply with time {} sec", messageContent, chats.getQueryTime());
-                    return chats.getQueryReply();
+                    return trimText(chats.getQueryReply());
                 } else {
                     long startTime = System.currentTimeMillis();
                     // call openapi
@@ -89,8 +97,10 @@ public class ChatGptServiceImpl implements ChatGptService {
                     // todo: can query with n > 1 save with other data struct
                     userQueries.put(messageContent, UserChatDomain.builder()
                             .queryReply(messageResponseBody.getChoices().get(0).getMessage().getContent())
-                            .queryTime(messageResponseBody.getCreated() - startTime).build());
-                    return messageResponseBody.getChoices().get(0).getMessage().getContent();
+                            .queryTime(messageResponseBody.getCreated() - startTime)
+                            .replyBitLength(messageResponseBody.getChoices().get(0).getMessage().getContent()
+                                    .getBytes(StandardCharsets.UTF_8).length).build());
+                    return trimText(messageResponseBody.getChoices().get(0).getMessage().getContent());
                 }
             }, "-->chat service run -->");
 //            return (futures.get(4800, TimeUnit.MILLISECONDS) != null) ? futures.get() : EXCESS_5_SEC_LIMIT;
@@ -105,7 +115,7 @@ public class ChatGptServiceImpl implements ChatGptService {
                 try {
                     lock.unlock();
                 } catch (Exception e) {
-                    log.error("runTopicThreads unlock error", e);
+                    log.error(userKey + " unlock error", e);
                 }
             }
         }
@@ -210,5 +220,23 @@ public class ChatGptServiceImpl implements ChatGptService {
 //            }
 //        }
         return "暂时不明白你说什么!";
+    }
+
+    private String trimText(String in) {
+        if (in.getBytes(StandardCharsets.UTF_8).length <= maxByteLen) {
+            return in;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("message byte length is {} ", in.getBytes(StandardCharsets.UTF_8).length);
+        }
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+        byte[] sba = in.getBytes(StandardCharsets.UTF_8);
+        ByteBuffer bb = ByteBuffer.wrap(sba, 0, maxByteLen);
+        CharBuffer cb = CharBuffer.allocate(maxByteLen);
+        // Ignore an incomplete character
+        decoder.onMalformedInput(CodingErrorAction.IGNORE);
+        decoder.decode(bb, cb, true);
+        decoder.flush(cb);
+        return new String(cb.array(), 0, cb.position());
     }
 }
