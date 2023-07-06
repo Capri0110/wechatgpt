@@ -1,3 +1,6 @@
+app:
+  name: wechatgpt
+
 server:
   port: 80
   servlet:
@@ -5,9 +8,11 @@ server:
 
 openai:
   organization:
-  model: gpt-3.5-turbo
+    model: gpt-3.5
+#  model: gpt-3.5-turbo-0301
+#  model: gpt-4
   api:
-    key: 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
+    key: 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
     url: https://api.openai.com/v1/chat/completions
 
 spring:
@@ -21,3 +26,7 @@ spring:
         min-idle: 50
         max-active: 1000
         max-wait: 10000
+
+log:
+  level: debug
+  dir: /var/log/${app.name}/
